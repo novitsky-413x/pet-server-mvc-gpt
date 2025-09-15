@@ -1,0 +1,37 @@
+{
+    "name": "pet-server-mvc-gpt",
+    "version": "1.0.0",
+    "description": "MVC server using together.ai for communicating with neural networks",
+    "main": "app.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "start": "nodemon app.js",
+        "start-server": "node app.js"
+    },
+    "author": "Alexander Novitsky",
+    "license": "ISC",
+    "devDependencies": {
+        "@types/express": "^5.0.0",
+        "@types/node": "^22.13.1",
+        "@types/pdfkit": "^0.17.3",
+        "@types/sequelize": "^4.28.20",
+        "nodemon": "^3.1.9"
+    },
+    "dependencies": {
+        "bcryptjs": "^3.0.2",
+        "body-parser": "^1.18.3",
+        "connect-flash": "^0.1.1",
+        "connect-mongodb-session": "^5.0.0",
+        "csurf": "^1.2.2",
+        "dotenv": "^16.4.7",
+        "ejs": "^3.1.10",
+        "express": "^4.16.3",
+        "express-session": "^1.18.1",
+        "express-validator": "^7.2.1",
+        "mongodb": "^3.1.6",
+        "mongoose": "^8.13.1",
+        "multer": "^2.0.2",
+        "nodemailer": "^6.10.0",
+        "pdfkit": "^0.17.2"
+    }
+}
