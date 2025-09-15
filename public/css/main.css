@@ -268,6 +268,18 @@ form {
     color: white;
 }
 
+/* Bulma navbar active highlighting */
+.navbar .navbar-item.is-active,
+.navbar .navbar-item.active {
+    color: #3273dc !important; /* Bulma primary */
+    font-weight: 700;
+    border-bottom: 2px solid #3273dc;
+}
+.navbar.is-light .navbar-item.is-active,
+.navbar.is-light .navbar-item.active {
+    background-color: rgba(50, 115, 220, 0.08);
+}
+
 @media (min-width: 768px) {
     .main-header__nav {
         display: flex;
@@ -280,4 +292,181 @@ form {
     .user-message {
         width: 30rem;
     }
+}
+
+/* Chat sidebar list layout and title truncation */
+#chatList li {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+}
+#chatList li .button.chat-title-btn {
+    flex: 1 1 auto;
+    min-width: 0; /* allow flex child to shrink so ellipsis can work */
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+    padding-right: 0.25rem;
+    overflow: hidden; /* clip inner text for ellipsis */
+}
+
+/* THEME: light pastel cyan/pink */
+:root[data-theme='light'] {
+    --bg: #fdfbff;
+    --text: #24323d;
+    --nav-bg: #ffffff;
+    --box-bg: #ffffff;
+    --primary: #6ec1e4; /* pastel cyan */
+    --accent: #f7a8c5; /* pastel pink */
+}
+
+/* THEME: dark (Dracula-like) */
+:root[data-theme='dark'] {
+    --bg: #282a36;
+    --text: #f8f8f2;
+    --nav-bg: #343746;
+    --box-bg: #1e1f29;
+    --primary: #bd93f9; /* purple */
+    --accent: #ff79c6; /* pink */
+}
+
+/* Apply theme variables */
+html,
+body {
+    background: var(--bg);
+    color: var(--text);
+}
+.navbar {
+    background: var(--nav-bg) !important;
+}
+.navbar .navbar-burger {
+    color: var(--text) !important;
+}
+.navbar .navbar-burger span {
+    background-color: currentColor !important;
+}
+.navbar .navbar-burger:hover {
+    background-color: color-mix(in srgb, var(--text) 8%, transparent);
+}
+.navbar-menu,
+.navbar-dropdown {
+    background: var(--nav-bg) !important;
+}
+.navbar-menu .navbar-item,
+.navbar-dropdown .navbar-item {
+    color: var(--text) !important;
+}
+.navbar .navbar-item,
+.navbar .navbar-link {
+    color: var(--text);
+}
+.box,
+.message,
+#messages.box {
+    background: var(--box-bg);
+}
+.empty-state {
+    display: grid;
+    place-items: center;
+    color: color-mix(in srgb, var(--text) 50%, transparent);
+    font-size: 2rem;
+    min-height: 200px;
+}
+
+/* Modal buttons spacing and mobile-friendly layout */
+.modal-card-foot {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+.modal-card-foot .button {
+    margin: 0; /* rely on gap above */
+}
+@media (max-width: 480px) {
+    .modal-card-foot {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    .modal-card-foot .button {
+        width: 100%;
+    }
+}
+.button.is-primary,
+.is-link.button {
+    background-color: var(--primary);
+    border-color: var(--primary);
+}
+.button.is-primary.is-light,
+.tag.is-info.is-light {
+    color: var(--text);
+    background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+}
+.tag.is-info.is-light {
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+}
+.markdown-answer a {
+    color: var(--primary);
+}
+.navbar .navbar-item.is-active,
+.navbar .navbar-item.active {
+    border-bottom-color: var(--primary);
+    color: var(--primary) !important;
+}
+
+/* Theme toggle button (optional positioning) */
+.theme-toggle {
+    position: fixed;
+    right: 1rem;
+    bottom: 1rem;
+    z-index: 10;
+}
+#chatList li .button.chat-title-btn:hover {
+    background: rgba(50, 115, 220, 0.06);
+}
+#chatList .chat-title {
+    display: block;
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis; /* ... at the end */
+    white-space: nowrap;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    text-align: center;
+}
+
+/* Desktop: slightly larger title, still single-line with ellipsis */
+@media (min-width: 1024px) {
+    #chatList .chat-title {
+        font-size: 1.05rem;
+        padding: 0.35rem 0.75rem;
+        line-height: 1.2;
+    }
+}
+
+/* Desktop: make edit/delete icons slightly smaller and tighter, add spacing between items */
+@media (min-width: 1024px) {
+    #chatList li {
+        margin-bottom: 0.75rem;
+    }
+    #chatList li .buttons .button {
+        padding: 0.25rem 0.4rem;
+        line-height: 1;
+        margin: 0; /* override bulma buttons block */
+    }
+    #chatList li .buttons .button .icon,
+    #chatList li .buttons .button .icon i {
+        font-size: 0.75rem;
+    }
+    #chatList li .buttons {
+        gap: 0.15rem;
+    }
+}
+#chatList li .buttons {
+    flex-shrink: 0;
+    justify-content: flex-end;
+    gap: 0.25rem;
 }

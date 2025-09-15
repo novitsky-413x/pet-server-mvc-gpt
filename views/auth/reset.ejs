@@ -1,22 +1,30 @@
 <%- include('../includes/head.ejs') %>
-<link rel="stylesheet" href="/css/forms.css">
-<link rel="stylesheet" href="/css/auth.css">
 </head>
 
 <body>
   <%- include('../includes/navigation.ejs') %>
 
-  <main>
-    <% if (errorMessage) { %>
-    <div class="user-message user-message--error"><%= errorMessage %></div>
-    <% } %>
-    <form class="login-form" action="/reset" method="POST">
-      <div class="form-control">
-        <label for="email">E-mail</label>
-        <input type="text" name="email" id="email">
+  <main class="section">
+    <div class="container">
+      <% if (errorMessage) { %>
+      <div class="notification is-danger"><%= errorMessage %></div>
+      <% } %>
+      <div class="columns is-centered">
+        <div class="column is-one-third">
+          <form class="box" action="/reset" method="POST">
+            <div class="field">
+              <label class="label" for="email">E-mail</label>
+              <div class="control">
+                <input class="input" type="email" name="email" id="email">
+              </div>
+            </div>
+            <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+            <div class="field is-grouped is-grouped-right">
+              <p class="control"><button class="button is-link" type="submit">Reset Password</button></p>
+            </div>
+          </form>
+        </div>
       </div>
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-      <button class="btn" type="submit">Reset Password</button>
-    </form>
+    </div>
   </main>
   <%- include('../includes/end.ejs') %>

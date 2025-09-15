@@ -2,10 +2,16 @@
 </head>
 <body>
     <%- include('includes/navigation.ejs') %>
-    <main>
-        <h1>Welcome back</h1>
-        <p>You are logged in. Start a new conversation or continue an existing one.</p>
-        <button id="startChat">Start new chat</button>
+    <main class="section">
+        <div class="container">
+            <section class="hero is-info">
+                <div class="hero-body">
+                    <p class="title">Welcome back</p>
+                    <p class="subtitle">Start a new conversation or continue an existing one.</p>
+                    <button id="startChat" class="button is-light">Start new chat</button>
+                </div>
+            </section>
+        </div>
     </main>
     <script>
     (function(){

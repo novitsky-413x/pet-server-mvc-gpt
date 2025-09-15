@@ -1,26 +1,48 @@
 <%- include('includes/head.ejs') %>
-</head>
 <body>
     <%- include('includes/navigation.ejs') %>
-    <main>
-        <h1>Chat</h1>
-        <section>
-            <button id="newChat">New chat</button>
-            <ul id="chatList"></ul>
-        </section>
-        <section>
-            <div id="messages" style="white-space: pre-wrap;"></div>
-            <form id="sendForm">
-                <input id="input" name="content" />
-                <button type="submit">Send</button>
-            </form>
-        </section>
-        <script>
-        (function(){
-            const csrf = "<%= csrfToken %>";
+    <main class="section">
+        <div class="container">
+            <h1 class="title" id="chatTitle">Chat</h1>
+            <div class="columns">
+                <aside class="column is-one-quarter">
+                    <div class="box">
+                        <div class="buttons">
+                            <button id="newChat" class="button is-primary is-fullwidth">
+                                Start new chat
+                            </button>
+                        </div>
+                        <ul id="chatList" class="menu-list"></ul>
+                    </div>
+                </aside>
+                <section class="column">
+                    <div id="messages" class="box" style="white-space: pre-wrap"></div>
+                    <form id="sendForm" class="field has-addons">
+                        <div class="control is-expanded">
+                            <input
+                                id="input"
+                                name="content"
+                                class="input"
+                                placeholder="Type your message..."
+                                autocomplete="off"
+                            />
+                        </div>
+                        <div class="control">
+                            <button type="submit" class="button is-link">Send</button>
+                        </div>
+                    </form>
+                </section>
+            </div>
+        </div>
+    </main>
+    <script>
+        (function () {
+            const csrf = '<%= csrfToken %>';
             let activeChatId = null;
             const chatListEl = document.getElementById('chatList');
             const messagesEl = document.getElementById('messages');
+            const chatTitleEl = document.getElementById('chatTitle');
+            const chatTitles = {};
             const sendForm = document.getElementById('sendForm');
             const input = document.getElementById('input');
             const ensureMarked = new Promise((resolve) => {
@@ -28,68 +50,149 @@
                 const s = document.createElement('script');
                 s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
                 s.onload = () => {
-                    try { if (window.marked && window.marked.setOptions) { window.marked.setOptions({ gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true }); } } catch(_) {}
+                    try {
+                        if (window.marked && window.marked.setOptions) {
+                            window.marked.setOptions({
+                                gfm: true,
+                                breaks: false,
+                                mangle: false,
+                                headerIds: false,
+                                smartypants: true,
+                                highlight: function (code) {
+                                    return code;
+                                },
+                            });
+                        }
+                    } catch (_) {}
                     resolve();
                 };
                 s.onerror = () => resolve();
                 document.head.appendChild(s);
             });
-            function loadHL(){
-                return new Promise((resolve)=>{
+            // highlight.js with theme switching
+            function loadHL() {
+                return new Promise((resolve) => {
                     if (window.hljs) return resolve();
-                    const l = document.createElement('link');
-                    l.rel = 'stylesheet';
-                    l.href = 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css';
-                    document.head.appendChild(l);
-                    const s = document.createElement('script');
-                    s.src = 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js';
-                    s.onload = () => resolve();
-                    s.onerror = () => resolve();
-                    document.head.appendChild(s);
+                    // inject stylesheet link placeholder
+                    let link = document.getElementById('hljs-theme');
+                    if (!link) {
+                        link = document.createElement('link');
+                        link.id = 'hljs-theme';
+                        link.rel = 'stylesheet';
+                        document.head.appendChild(link);
+                    }
+                    const script = document.createElement('script');
+                    // Use browser CDN build with common languages
+                    script.src = 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js';
+                    script.onload = () => {
+                        try {
+                            if (window.hljs && window.hljs.highlightElement) {
+                                window.hljs.configure({ ignoreUnescapedHTML: true });
+                            }
+                            // Hook marked to use hljs if available
+                            try {
+                                if (window.marked && window.hljs) {
+                                    window.marked.setOptions({
+                                        highlight: function (code, lang) {
+                                            try {
+                                                if (lang && window.hljs.getLanguage(lang)) {
+                                                    return window.hljs.highlight(code, { language: lang }).value;
+                                                }
+                                            } catch (_) {}
+                                            try {
+                                                return window.hljs.highlightAuto(code).value;
+                                            } catch (_) {}
+                                            return code;
+                                        }
+                                    });
+                                }
+                            } catch (_) {}
+                            // Theme updater based on data-theme
+                            window.updateHLTheme = function updateHLTheme() {
+                                const theme = (
+                                    document.documentElement.getAttribute('data-theme') || 'light'
+                                ).toLowerCase();
+                                // Use GitHub themes for light/dark
+                                const href =
+                                    theme === 'dark'
+                                        ? 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css'
+                                        : 'https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/github.min.css';
+                                const l = document.getElementById('hljs-theme');
+                                if (l) l.href = href;
+                            };
+                            window.updateHLTheme();
+                        } catch (_) {}
+                        resolve();
+                    };
+                    script.onerror = () => resolve();
+                    document.head.appendChild(script);
                 });
             }
 
-            async function loadChats(){
-                const res = await fetch('/api/chats', { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
-                const data = await res.json();
+            async function loadChats() {
+                let data = { items: [] };
+                try {
+                    const res = await fetch('/api/chats', {
+                        headers: { 'CSRF-Token': csrf },
+                        credentials: 'include',
+                    });
+                    if (!res.ok) throw new Error('Failed to load chats: ' + res.status);
+                    data = await res.json();
+                } catch (e) {
+                    console.error(e);
+                }
                 chatListEl.innerHTML = '';
-                if (!data.items || data.items.length === 0){
+                if (!data.items || data.items.length === 0) {
                     const hint = document.createElement('div');
                     hint.textContent = 'No chats yet. Click "New chat" to start.';
                     chatListEl.appendChild(hint);
                 }
-                for (const c of data.items){
+                for (const c of data.items || []) {
+                    chatTitles[c._id] = c.title || 'Untitled';
                     const li = document.createElement('li');
+                    li.dataset.id = c._id;
                     const titleBtn = document.createElement('button');
                     titleBtn.type = 'button';
-                    titleBtn.textContent = c.title || 'Untitled';
-                    titleBtn.style.cursor = 'pointer';
-                    titleBtn.onclick = ()=> selectChat(c._id);
+                    titleBtn.textContent = '';
+                    titleBtn.className = 'button chat-title-btn is-fullwidth has-text-left';
+                    const titleSpan = document.createElement('span');
+                    titleSpan.className = 'chat-title tag is-info is-light is-medium';
+                    titleSpan.textContent = chatTitles[c._id];
+                    titleBtn.appendChild(titleSpan);
+                    // inline controls next to title (as sibling)
+                    const controls = document.createElement('div');
+                    controls.className = 'buttons';
                     const renameBtn = document.createElement('button');
                     renameBtn.type = 'button';
-                    renameBtn.textContent = 'Rename';
-                    renameBtn.onclick = async (e)=>{
+                    renameBtn.className = 'button is-white is-small';
+                    renameBtn.innerHTML = '<span class="icon is-small"><i class="fas fa-pen"></i></span>';
+                    renameBtn.title = 'Rename';
+                    renameBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        const name = prompt('New chat name:', c.title || '');
+                        const name = await openPromptModal('Rename chat', (c.title || '').trim());
                         if (!name) return;
                         await fetch(`/api/chats/${c._id}`, {
                             method: 'PATCH',
                             headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
                             credentials: 'include',
-                            body: JSON.stringify({ title: name })
+                            body: JSON.stringify({ title: name }),
                         });
                         await loadChats();
                     };
                     const delBtn = document.createElement('button');
                     delBtn.type = 'button';
-                    delBtn.textContent = 'Delete';
-                    delBtn.onclick = async (e)=>{
+                    delBtn.className = 'button is-white is-small';
+                    delBtn.innerHTML =
+                        '<span class="icon is-small has-text-danger"><i class="fas fa-trash"></i></span>';
+                    delBtn.title = 'Delete';
+                    delBtn.onclick = async (e) => {
                         e.stopPropagation();
-                        if (!confirm('Delete this chat?')) return;
+                        const ok = await openConfirmModal('Delete this chat?');
+                        if (!ok) return;
                         await fetch(`/api/chats/${c._id}`, {
                             method: 'DELETE',
                             headers: { 'CSRF-Token': csrf },
-                            credentials: 'include'
+                            credentials: 'include',
                         });
                         if (activeChatId === c._id) {
                             activeChatId = null;
@@ -97,39 +200,79 @@
                         }
                         await loadChats();
                     };
+                    controls.appendChild(renameBtn);
+                    controls.appendChild(delBtn);
+                    titleBtn.onclick = () => selectChat(c._id);
                     li.appendChild(titleBtn);
-                    li.appendChild(renameBtn);
-                    li.appendChild(delBtn);
+                    li.appendChild(controls);
+                    // append to list
                     chatListEl.appendChild(li);
                 }
-                if (!activeChatId && data.items[0]) selectChat(data.items[0]._id);
+                // Fallback: if nothing rendered but items exist, render simple list
+                if (data.items && data.items.length && chatListEl.children.length === 0) {
+                    chatListEl.innerHTML = (data.items || [])
+                        .map((c) => {
+                            const t = (c.title || 'Untitled')
+                                .replace(/&/g, '&amp;')
+                                .replace(/</g, '&lt;')
+                                .replace(/>/g, '&gt;');
+                            return `<li data-id="${c._id}"><button class="button is-white is-fullwidth has-text-left" onclick="(function(){try{selectChat('${c._id}')}catch(e){}})()">${t}</button></li>`;
+                        })
+                        .join('');
+                }
+                if (!activeChatId && data.items && data.items[0]) selectChat(data.items[0]._id);
+                markActiveChat();
             }
 
-            async function selectChat(id){
+            function markActiveChat() {
+                const items = chatListEl.querySelectorAll('li');
+                items.forEach((li) => {
+                    const btn = li.querySelector('.chat-title');
+                    if (btn) {
+                        if (li.dataset.id === String(activeChatId)) btn.classList.add('is-primary');
+                        else btn.classList.remove('is-primary');
+                    }
+                });
+            }
+
+            async function selectChat(id) {
                 activeChatId = id;
+                chatTitleEl.textContent = chatTitles[id] || 'Chat';
                 messagesEl.textContent = '';
+                markActiveChat();
                 // Ensure renderers are loaded for consistent formatting
                 await ensureMarked;
                 await loadHL();
-                const res = await fetch(`/api/chats/${id}/messages`, { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
+                const res = await fetch(`/api/chats/${id}/messages`, {
+                    headers: { 'CSRF-Token': csrf },
+                    credentials: 'include',
+                });
                 const data = await res.json();
-                for (const m of data.items){
-                    if (m.role === 'assistant') {
-                        appendAssistantStatic(m.content);
-                    } else {
-                        appendBubble('user', m.content);
+                if (!data.items || data.items.length === 0) {
+                    showEmptyState();
+                } else {
+                    for (const m of data.items) {
+                        if (m.role === 'assistant') {
+                            appendAssistantStatic(m.content);
+                        } else {
+                            appendBubble('user', m.content);
+                        }
                     }
                 }
             }
 
-            function appendBubble(role, text){
+            function appendBubble(role, text) {
                 const div = document.createElement('div');
-                div.textContent = (role === 'user' ? 'You: ' : 'Assistant: ') + text;
+                div.className = role === 'user' ? 'message is-link' : 'message';
+                const body = document.createElement('div');
+                body.className = 'message-body';
+                body.textContent = (role === 'user' ? 'You: ' : 'Assistant: ') + text;
+                div.appendChild(body);
                 messagesEl.appendChild(div);
                 return div;
             }
 
-            function appendAssistantWithThink(){
+            function appendAssistantWithThink() {
                 const container = document.createElement('div');
                 const details = document.createElement('details');
                 const summary = document.createElement('summary');
@@ -139,66 +282,134 @@
                 details.appendChild(summary);
                 details.appendChild(pre);
                 details.style.display = 'none';
+                const panel = document.createElement('article');
+                panel.className = 'message';
+                const body = document.createElement('div');
+                body.className = 'message-body';
                 const label = document.createElement('div');
                 label.textContent = 'Assistant: ';
                 const answerDiv = document.createElement('div');
                 answerDiv.className = 'markdown-answer';
-                answerDiv.style.display = 'inline-block';
                 answerDiv.style.whiteSpace = 'normal';
                 answerDiv.style.margin = '0';
-                label.appendChild(answerDiv);
+                body.appendChild(label);
+                body.appendChild(answerDiv);
+                panel.appendChild(body);
                 // Show reasoning above main response
                 container.appendChild(details);
-                container.appendChild(label);
+                container.appendChild(panel);
                 messagesEl.appendChild(container);
                 return { answerEl: answerDiv, thinkEl: pre, thinkDetails: details, answerBuf: '' };
             }
 
-            function appendAssistantStatic(text){
-                const container = document.createElement('div');
+            function normalizeMarkdown(md) {
+                if (!md) return '';
+                let s = String(md);
+                // Ensure fenced code blocks start/end on their own lines
+                s = s.replace(/([^\n])```/g, '$1\n```').replace(/```([^\n])/g, '```\n$1');
+                // If odd number of fences, close at end
+                const fenceCount = (s.match(/```/g) || []).length;
+                if (fenceCount % 2 === 1) s += '\n```';
+                // Normalize triple backticks with language immediately following number/lists
+                s = s.replace(/(^|\n)(\d+\.|[-*])\s*(```)/g, '$1$2\n$3');
+                // Move first-line language into fence when missing, e.g., ```\njavascript\n => ```javascript\n
+                s = s.replace(/```\s*\n([a-zA-Z0-9_#+\-.]+)\n/g, '```$1\n');
+                return s;
+            }
+
+            async function renderAssistantHTML(text, targetEl) {
+                const md = normalizeMarkdown(text);
+                if (window.marked && window.marked.parse) {
+                    const html = window.marked.parse(md, {
+                        gfm: true,
+                        breaks: false,
+                        mangle: false,
+                        headerIds: false,
+                        smartypants: true,
+                    });
+                    targetEl.innerHTML = html;
+                    // Apply syntax highlighting after render
+                    try {
+                        if (window.hljs) {
+                            const codeBlocks = targetEl.querySelectorAll('pre code');
+                            codeBlocks.forEach((el) => {
+                                window.hljs.highlightElement(el);
+                            });
+                        }
+                    } catch (_) {}
+                } else {
+                    targetEl.textContent = md;
+                }
+            }
+
+            function appendAssistantStatic(text) {
+                const panel = document.createElement('article');
+                panel.className = 'message';
+                const body = document.createElement('div');
+                body.className = 'message-body';
                 const label = document.createElement('div');
                 label.textContent = 'Assistant: ';
                 const answerDiv = document.createElement('div');
                 answerDiv.className = 'markdown-answer';
-                answerDiv.style.display = 'inline-block';
                 answerDiv.style.whiteSpace = 'normal';
                 answerDiv.style.margin = '0';
-                label.appendChild(answerDiv);
-                container.appendChild(label);
-                messagesEl.appendChild(container);
-                // Render with same pipeline as streaming
-                if (window.marked && window.marked.parse) {
-                    const html = window.marked.parse(text, { gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true });
-                    answerDiv.innerHTML = html;
-                    if (window.hljs) {
-                        answerDiv.querySelectorAll('pre code').forEach((el)=>{
-                            try { window.hljs.highlightElement(el); } catch(_) {}
-                        });
-                    }
-                } else {
-                    answerDiv.textContent = text;
-                }
+                body.appendChild(label);
+                body.appendChild(answerDiv);
+                panel.appendChild(body);
+                messagesEl.appendChild(panel);
+                Promise.all([ensureMarked]).then(() => {
+                    renderAssistantHTML(text, answerDiv);
+                });
             }
 
-            async function ensureChat(){
+            function showEmptyState() {
+                messagesEl.innerHTML = '';
+                const div = document.createElement('div');
+                div.className = 'empty-state';
+                div.innerHTML =
+                    '<span class="icon" style="font-size:2.5rem;"><i class="far fa-face-smile"></i></span>';
+                messagesEl.appendChild(div);
+            }
+
+            async function ensureChat() {
                 if (activeChatId) return activeChatId;
-                const res = await fetch('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf }, credentials: 'include', body: JSON.stringify({}) });
+                const res = await fetch('/api/chats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+                    credentials: 'include',
+                    body: JSON.stringify({}),
+                });
                 const data = await res.json();
                 await loadChats();
                 return data.item._id;
             }
 
-            document.getElementById('newChat').onclick = async ()=>{
-                await fetch('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf }, credentials: 'include', body: JSON.stringify({}) });
+            document.getElementById('newChat').onclick = async () => {
+                const res = await fetch('/api/chats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+                    credentials: 'include',
+                    body: JSON.stringify({}),
+                });
+                const data = await res.json();
+                const newId = data && data.item && data.item._id;
+                if (newId) {
+                    activeChatId = newId;
+                }
                 await loadChats();
+                if (newId) {
+                    await selectChat(newId);
+                }
             };
 
-            sendForm.addEventListener('submit', async (e)=>{
+            sendForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const content = input.value.trim();
                 if (!content) return;
                 input.value = '';
                 const id = await ensureChat();
+                const empty = messagesEl.querySelector('.empty-state');
+                if (empty) empty.remove();
                 appendBubble('user', content);
                 const assistant = appendAssistantWithThink();
                 await ensureMarked;
@@ -207,12 +418,12 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
                     credentials: 'include',
-                    body: JSON.stringify({ content })
+                    body: JSON.stringify({ content }),
                 });
                 const reader = res.body.getReader();
                 const decoder = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true });
                 let sseBuffer = '';
-                while (true){
+                while (true) {
                     const { value, done } = await reader.read();
                     if (done) break;
                     const chunk = decoder.decode(value, { stream: true });
@@ -220,15 +431,15 @@
                     const events = sseBuffer.split('\n\n');
                     // keep the last partial (no trailing double newline)
                     sseBuffer = events.pop();
-                    for (const evt of events){
+                    for (const evt of events) {
                         if (!evt) continue;
                         const lines = evt.split('\n');
                         let eventType = 'message';
                         const dataLines = [];
-                        for (const line of lines){
-                            if (line.startsWith('event:')){
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
                                 eventType = line.slice(6).trim().replace(/\r/g, '');
-                            } else if (line.startsWith('data:')){
+                            } else if (line.startsWith('data:')) {
                                 const raw = line.slice(5).replace(/\r/g, '');
                                 dataLines.push(raw);
                             }
@@ -245,30 +456,29 @@
                                 }
                             }
                             // Final render: apply Markdown + highlighting once to avoid partial artifacts
-                            (async ()=>{
+                            (async () => {
                                 try {
                                     // Re-fetch the last assistant message from DB to ensure perfect consistency
-                                    const res2 = await fetch(`/api/chats/${activeChatId}/messages?limit=1&before=${encodeURIComponent(new Date().toISOString())}`, { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
+                                    const res2 = await fetch(
+                                        `/api/chats/${activeChatId}/messages?limit=1&before=${encodeURIComponent(
+                                            new Date().toISOString()
+                                        )}`,
+                                        { headers: { 'CSRF-Token': csrf }, credentials: 'include' }
+                                    );
                                     const data2 = await res2.json();
                                     const last = (data2.items || []).slice(-1)[0];
                                     if (last && last.role === 'assistant') {
                                         assistant.answerBuf = last.content || assistant.answerBuf;
                                     }
-                                } catch(_) {}
-                                if (window.marked && window.marked.parse) {
-                                    const html = window.marked.parse(assistant.answerBuf, { gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true });
-                                    assistant.answerEl.innerHTML = html;
-                                    if (window.hljs) {
-                                        assistant.answerEl.querySelectorAll('pre code').forEach((el)=>{
-                                            try { window.hljs.highlightElement(el); } catch(_) {}
-                                        });
-                                    }
-                                } else {
-                                    assistant.answerEl.textContent = assistant.answerBuf;
+                                } catch (_) {}
+                                if (assistant.answerEl) {
+                                    renderAssistantHTML(assistant.answerBuf, assistant.answerEl);
                                 }
                             })();
                             // Refresh chat list to pick up auto-generated title from first message
-                            try { await loadChats(); } catch(_) {}
+                            try {
+                                await loadChats();
+                            } catch (_) {}
                             continue;
                         }
                         if (eventType === 'think') {
@@ -292,17 +502,17 @@
                     const lines = sseBuffer.split('\n');
                     let eventType = 'message';
                     const dataLines = [];
-                    for (const line of lines){
-                        if (line.startsWith('event:')){
+                    for (const line of lines) {
+                        if (line.startsWith('event:')) {
                             eventType = line.slice(6).trim().replace(/\r/g, '');
-                        } else if (line.startsWith('data:')){
+                        } else if (line.startsWith('data:')) {
                             const raw = line.slice(5);
                             const noLead = raw.startsWith(' ') ? raw.slice(1) : raw;
                             dataLines.push(noLead.replace(/\r/g, ''));
                         }
                     }
                     const data = dataLines.join('\n');
-                    if (data && data !== '[DONE]'){
+                    if (data && data !== '[DONE]') {
                         if (eventType === 'think') {
                             assistant.thinkEl.textContent += data;
                         } else {
@@ -315,15 +525,197 @@
 
             loadChats();
         })();
-        </script>
-        <style>
-        .markdown-answer table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
-        .markdown-answer th, .markdown-answer td { border: 1px solid #ccc; padding: 4px 8px; }
-        .markdown-answer thead { background: #f6f8fa; }
-        </style>
-    </main>
+    </script>
+    <!-- Modals -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title">Please confirm</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <section class="modal-card-body">
+                <p id="confirmMessage">Are you sure?</p>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-danger" id="confirmYes">Confirm</button>
+                <button class="button" id="confirmNo">Cancel</button>
+            </footer>
+        </div>
+    </div>
+    <div id="promptModal" class="modal">
+        <div class="modal-background"></div>
+        <div class="modal-card">
+            <header class="modal-card-head">
+                <p class="modal-card-title" id="promptTitle">Input</p>
+                <button class="delete" aria-label="close"></button>
+            </header>
+            <section class="modal-card-body">
+                <div class="field">
+                    <div class="control">
+                        <input class="input" id="promptInput" type="text" />
+                    </div>
+                </div>
+            </section>
+            <footer class="modal-card-foot">
+                <button class="button is-link" id="promptOk">OK</button>
+                <button class="button" id="promptCancel">Cancel</button>
+            </footer>
+        </div>
+    </div>
+    <script>
+        // Modal helpers
+        function openConfirmModal(message) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('confirmModal');
+                const bg = modal.querySelector('.modal-background');
+                const closeBtn = modal.querySelector('.delete');
+                const yesBtn = document.getElementById('confirmYes');
+                const noBtn = document.getElementById('confirmNo');
+                document.getElementById('confirmMessage').textContent = message || 'Are you sure?';
+                const cleanup = () => {
+                    yesBtn.onclick = null;
+                    noBtn.onclick = null;
+                    bg.onclick = null;
+                    closeBtn.onclick = null;
+                    modal.classList.remove('is-active');
+                };
+                yesBtn.onclick = () => {
+                    cleanup();
+                    resolve(true);
+                };
+                noBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                bg.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                closeBtn.onclick = () => {
+                    cleanup();
+                    resolve(false);
+                };
+                modal.classList.add('is-active');
+            });
+        }
+        function openPromptModal(title, defaultValue) {
+            return new Promise((resolve) => {
+                const modal = document.getElementById('promptModal');
+                const bg = modal.querySelector('.modal-background');
+                const closeBtn = modal.querySelector('.delete');
+                const okBtn = document.getElementById('promptOk');
+                const cancelBtn = document.getElementById('promptCancel');
+                const input = document.getElementById('promptInput');
+                document.getElementById('promptTitle').textContent = title || 'Input';
+                input.value = (defaultValue || '').trim();
+                input.focus();
+                const cleanup = () => {
+                    okBtn.onclick = null;
+                    cancelBtn.onclick = null;
+                    bg.onclick = null;
+                    closeBtn.onclick = null;
+                    input.onkeydown = null;
+                    modal.classList.remove('is-active');
+                };
+                okBtn.onclick = () => {
+                    const v = input.value.trim();
+                    cleanup();
+                    resolve(v || null);
+                };
+                cancelBtn.onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                bg.onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                closeBtn.onclick = () => {
+                    cleanup();
+                    resolve(null);
+                };
+                input.onkeydown = (e) => {
+                    if (e.key === 'Enter') {
+                        okBtn.click();
+                    }
+                    if (e.key === 'Escape') {
+                        cancelBtn.click();
+                    }
+                };
+                modal.classList.add('is-active');
+            });
+        }
+    </script>
+    <style>
+        .markdown-answer table {
+            border-collapse: collapse;
+            margin: 8px 0;
+            display: block;
+            overflow-x: auto;
+        }
+        .markdown-answer th,
+        .markdown-answer td {
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+        }
+        /* Table header backgrounds per theme */
+        html[data-theme="light"] .markdown-answer thead {
+            background: #f6f8fa;
+        }
+        html[data-theme="dark"] .markdown-answer thead {
+            background: #23262d;
+        }
+        /* Improve contrast in dark mode */
+        html[data-theme="dark"] .markdown-answer th,
+        html[data-theme="dark"] .markdown-answer td {
+            border-color: #3a3f4b;
+        }
+        html[data-theme="dark"] .markdown-answer th {
+            color: #eaeef1;
+        }
+        /* Improve code block readability and remove flat gray background */
+        .markdown-answer pre {
+            background: transparent;
+            padding: 0;
+            margin: 0.75rem 0;
+            overflow: auto;
+        }
+        .markdown-answer pre code {
+            display: block;
+            border-radius: 6px;
+            padding: 0.75rem 0.9rem;
+            line-height: 1.5;
+            font-size: 0.95rem;
+        }
+        /* Light/dark surface colors to match app theme */
+        html[data-theme="light"] .markdown-answer pre code {
+            background: #f6f8fa;
+            color: #24292f;
+        }
+        html[data-theme="dark"] .markdown-answer pre code {
+            background: #1e1f29; /* Dracula-like background */
+            color: #f8f8f2;
+        }
+        /* Inline code */
+        .markdown-answer :not(pre) > code {
+            background: rgba(127, 127, 127, 0.15);
+            padding: 0.1rem 0.35rem;
+            border-radius: 4px;
+            font-size: 0.95em;
+        }
+        html[data-theme="dark"] .markdown-answer :not(pre) > code {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        /* Dark mode: user message bubble (Bulma .message.is-link) to Dracula-like */
+        html[data-theme="dark"] .message.is-link {
+            background: transparent;
+        }
+        html[data-theme="dark"] .message.is-link .message-body {
+            background-color: #44475a;
+            color: #f8f8f2;
+            border-color: #6272a4;
+        }
+    </style>
     <%- include('includes/end.ejs') %>
 </body>
-</html>
-
-

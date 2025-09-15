@@ -2,11 +2,19 @@
 </head>
 <body>
     <%- include('includes/navigation.ejs') %>
-    <main>
-        <h1>Welcome to Chat App</h1>
-        <p>Sign up or log in to start chatting with the LLM.</p>
-        <a href="/login" class="btn">Login</a>
-        <a href="/signup" class="btn">Sign Up</a>
+    <main class="section">
+        <div class="container">
+            <section class="hero is-primary">
+                <div class="hero-body">
+                    <p class="title">Welcome to Chat App</p>
+                    <p class="subtitle">Sign up or log in to start chatting with the LLM.</p>
+                    <div class="buttons">
+                        <a href="/login" class="button is-light">Login</a>
+                        <a href="/signup" class="button is-light is-outlined">Sign Up</a>
+                    </div>
+                </div>
+            </section>
+        </div>
     </main>
     <%- include('includes/end.ejs') %>
 </body>
