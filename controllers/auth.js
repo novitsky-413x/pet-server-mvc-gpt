@@ -20,6 +20,9 @@ const transporter = nodemailer.createTransport({
 });
 
 exports.getLogin = (req, res, next) => {
+    if (req.session && req.session.isLoggedIn) {
+        return res.redirect('/chat');
+    }
     let message = req.flash('error');
     if (message.length > 0) {
         message = message[0];
@@ -39,6 +42,9 @@ exports.getLogin = (req, res, next) => {
 };
 
 exports.getSignup = (req, res, next) => {
+    if (req.session && req.session.isLoggedIn) {
+        return res.redirect('/chat');
+    }
     let message = req.flash('error');
     if (message.length > 0) {
         message = message[0];

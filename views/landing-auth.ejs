@@ -1,0 +1,37 @@
+<%- include('includes/head.ejs') %>
+</head>
+<body>
+    <%- include('includes/navigation.ejs') %>
+    <main>
+        <h1>Welcome back</h1>
+        <p>You are logged in. Start a new conversation or continue an existing one.</p>
+        <button id="startChat">Start new chat</button>
+    </main>
+    <script>
+    (function(){
+        const csrf = "<%= csrfToken %>";
+        document.getElementById('startChat').addEventListener('click', async ()=>{
+            try{
+                const res = await fetch('/api/chats', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+                    credentials: 'include',
+                    body: JSON.stringify({})
+                });
+                const data = await res.json();
+                if (data && data.item && data.item._id){
+                    window.location.href = '/chat';
+                } else {
+                    window.location.href = '/chat';
+                }
+            } catch(e){
+                window.location.href = '/chat';
+            }
+        });
+    })();
+    </script>
+    <%- include('includes/end.ejs') %>
+</body>
+</html>
+
+

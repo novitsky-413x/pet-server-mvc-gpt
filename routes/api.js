@@ -11,5 +11,7 @@ router.get('/chats', apiAuth, chatsController.list);
 router.post('/chats', apiAuth, chatsController.create);
 router.get('/chats/:id/messages', apiAuth, chatsController.messages);
 router.post('/chats/:id/messages/stream', apiAuth, chatsController.stream);
+router.patch('/chats/:id', apiAuth, chatsController.rename);
+router.delete('/chats/:id', apiAuth, chatsController.remove);
 
 module.exports = router;

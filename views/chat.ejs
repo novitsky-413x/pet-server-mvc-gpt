@@ -23,16 +23,83 @@
             const messagesEl = document.getElementById('messages');
             const sendForm = document.getElementById('sendForm');
             const input = document.getElementById('input');
+            const ensureMarked = new Promise((resolve) => {
+                if (window.marked) return resolve();
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/npm/marked/marked.min.js';
+                s.onload = () => {
+                    try { if (window.marked && window.marked.setOptions) { window.marked.setOptions({ gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true }); } } catch(_) {}
+                    resolve();
+                };
+                s.onerror = () => resolve();
+                document.head.appendChild(s);
+            });
+            function loadHL(){
+                return new Promise((resolve)=>{
+                    if (window.hljs) return resolve();
+                    const l = document.createElement('link');
+                    l.rel = 'stylesheet';
+                    l.href = 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/github.min.css';
+                    document.head.appendChild(l);
+                    const s = document.createElement('script');
+                    s.src = 'https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/lib/common.min.js';
+                    s.onload = () => resolve();
+                    s.onerror = () => resolve();
+                    document.head.appendChild(s);
+                });
+            }
 
             async function loadChats(){
                 const res = await fetch('/api/chats', { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
                 const data = await res.json();
                 chatListEl.innerHTML = '';
+                if (!data.items || data.items.length === 0){
+                    const hint = document.createElement('div');
+                    hint.textContent = 'No chats yet. Click "New chat" to start.';
+                    chatListEl.appendChild(hint);
+                }
                 for (const c of data.items){
                     const li = document.createElement('li');
-                    li.textContent = c.title;
-                    li.style.cursor = 'pointer';
-                    li.onclick = ()=> selectChat(c._id);
+                    const titleBtn = document.createElement('button');
+                    titleBtn.type = 'button';
+                    titleBtn.textContent = c.title || 'Untitled';
+                    titleBtn.style.cursor = 'pointer';
+                    titleBtn.onclick = ()=> selectChat(c._id);
+                    const renameBtn = document.createElement('button');
+                    renameBtn.type = 'button';
+                    renameBtn.textContent = 'Rename';
+                    renameBtn.onclick = async (e)=>{
+                        e.stopPropagation();
+                        const name = prompt('New chat name:', c.title || '');
+                        if (!name) return;
+                        await fetch(`/api/chats/${c._id}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+                            credentials: 'include',
+                            body: JSON.stringify({ title: name })
+                        });
+                        await loadChats();
+                    };
+                    const delBtn = document.createElement('button');
+                    delBtn.type = 'button';
+                    delBtn.textContent = 'Delete';
+                    delBtn.onclick = async (e)=>{
+                        e.stopPropagation();
+                        if (!confirm('Delete this chat?')) return;
+                        await fetch(`/api/chats/${c._id}`, {
+                            method: 'DELETE',
+                            headers: { 'CSRF-Token': csrf },
+                            credentials: 'include'
+                        });
+                        if (activeChatId === c._id) {
+                            activeChatId = null;
+                            messagesEl.textContent = '';
+                        }
+                        await loadChats();
+                    };
+                    li.appendChild(titleBtn);
+                    li.appendChild(renameBtn);
+                    li.appendChild(delBtn);
                     chatListEl.appendChild(li);
                 }
                 if (!activeChatId && data.items[0]) selectChat(data.items[0]._id);
@@ -41,10 +108,17 @@
             async function selectChat(id){
                 activeChatId = id;
                 messagesEl.textContent = '';
+                // Ensure renderers are loaded for consistent formatting
+                await ensureMarked;
+                await loadHL();
                 const res = await fetch(`/api/chats/${id}/messages`, { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
                 const data = await res.json();
                 for (const m of data.items){
-                    appendBubble(m.role, m.content);
+                    if (m.role === 'assistant') {
+                        appendAssistantStatic(m.content);
+                    } else {
+                        appendBubble('user', m.content);
+                    }
                 }
             }
 
@@ -53,6 +127,57 @@
                 div.textContent = (role === 'user' ? 'You: ' : 'Assistant: ') + text;
                 messagesEl.appendChild(div);
                 return div;
+            }
+
+            function appendAssistantWithThink(){
+                const container = document.createElement('div');
+                const details = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = 'Show reasoning';
+                const pre = document.createElement('pre');
+                pre.style.whiteSpace = 'pre-wrap';
+                details.appendChild(summary);
+                details.appendChild(pre);
+                details.style.display = 'none';
+                const label = document.createElement('div');
+                label.textContent = 'Assistant: ';
+                const answerDiv = document.createElement('div');
+                answerDiv.className = 'markdown-answer';
+                answerDiv.style.display = 'inline-block';
+                answerDiv.style.whiteSpace = 'normal';
+                answerDiv.style.margin = '0';
+                label.appendChild(answerDiv);
+                // Show reasoning above main response
+                container.appendChild(details);
+                container.appendChild(label);
+                messagesEl.appendChild(container);
+                return { answerEl: answerDiv, thinkEl: pre, thinkDetails: details, answerBuf: '' };
+            }
+
+            function appendAssistantStatic(text){
+                const container = document.createElement('div');
+                const label = document.createElement('div');
+                label.textContent = 'Assistant: ';
+                const answerDiv = document.createElement('div');
+                answerDiv.className = 'markdown-answer';
+                answerDiv.style.display = 'inline-block';
+                answerDiv.style.whiteSpace = 'normal';
+                answerDiv.style.margin = '0';
+                label.appendChild(answerDiv);
+                container.appendChild(label);
+                messagesEl.appendChild(container);
+                // Render with same pipeline as streaming
+                if (window.marked && window.marked.parse) {
+                    const html = window.marked.parse(text, { gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true });
+                    answerDiv.innerHTML = html;
+                    if (window.hljs) {
+                        answerDiv.querySelectorAll('pre code').forEach((el)=>{
+                            try { window.hljs.highlightElement(el); } catch(_) {}
+                        });
+                    }
+                } else {
+                    answerDiv.textContent = text;
+                }
             }
 
             async function ensureChat(){
@@ -75,7 +200,9 @@
                 input.value = '';
                 const id = await ensureChat();
                 appendBubble('user', content);
-                const assistantEl = appendBubble('assistant', '');
+                const assistant = appendAssistantWithThink();
+                await ensureMarked;
+                await loadHL();
                 const res = await fetch(`/api/chats/${id}/messages/stream`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
@@ -83,25 +210,117 @@
                     body: JSON.stringify({ content })
                 });
                 const reader = res.body.getReader();
-                const decoder = new TextDecoder();
+                const decoder = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true });
+                let sseBuffer = '';
                 while (true){
                     const { value, done } = await reader.read();
                     if (done) break;
                     const chunk = decoder.decode(value, { stream: true });
-                    const parts = chunk.split('\n\n');
-                    for (const part of parts){
-                        if (part.startsWith('data:')){
-                            const delta = part.slice(5).trim();
-                            if (delta === '[DONE]') continue;
-                            assistantEl.textContent += delta;
+                    sseBuffer += chunk;
+                    const events = sseBuffer.split('\n\n');
+                    // keep the last partial (no trailing double newline)
+                    sseBuffer = events.pop();
+                    for (const evt of events){
+                        if (!evt) continue;
+                        const lines = evt.split('\n');
+                        let eventType = 'message';
+                        const dataLines = [];
+                        for (const line of lines){
+                            if (line.startsWith('event:')){
+                                eventType = line.slice(6).trim().replace(/\r/g, '');
+                            } else if (line.startsWith('data:')){
+                                const raw = line.slice(5).replace(/\r/g, '');
+                                dataLines.push(raw);
+                            }
+                        }
+                        const data = dataLines.join('');
+                        if (eventType === 'done') {
+                            // collapse reasoning when stream completes
+                            if (assistant.thinkDetails) {
+                                if (assistant.thinkEl.textContent) {
+                                    assistant.thinkDetails.open = false;
+                                } else {
+                                    // no reasoning received, keep hidden
+                                    assistant.thinkDetails.style.display = 'none';
+                                }
+                            }
+                            // Final render: apply Markdown + highlighting once to avoid partial artifacts
+                            (async ()=>{
+                                try {
+                                    // Re-fetch the last assistant message from DB to ensure perfect consistency
+                                    const res2 = await fetch(`/api/chats/${activeChatId}/messages?limit=1&before=${encodeURIComponent(new Date().toISOString())}`, { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
+                                    const data2 = await res2.json();
+                                    const last = (data2.items || []).slice(-1)[0];
+                                    if (last && last.role === 'assistant') {
+                                        assistant.answerBuf = last.content || assistant.answerBuf;
+                                    }
+                                } catch(_) {}
+                                if (window.marked && window.marked.parse) {
+                                    const html = window.marked.parse(assistant.answerBuf, { gfm: true, breaks: false, mangle: false, headerIds: false, smartypants: true });
+                                    assistant.answerEl.innerHTML = html;
+                                    if (window.hljs) {
+                                        assistant.answerEl.querySelectorAll('pre code').forEach((el)=>{
+                                            try { window.hljs.highlightElement(el); } catch(_) {}
+                                        });
+                                    }
+                                } else {
+                                    assistant.answerEl.textContent = assistant.answerBuf;
+                                }
+                            })();
+                            // Refresh chat list to pick up auto-generated title from first message
+                            try { await loadChats(); } catch(_) {}
+                            continue;
+                        }
+                        if (eventType === 'think') {
+                            if (data) {
+                                // auto-open while receiving reasoning
+                                if (assistant.thinkDetails) {
+                                    assistant.thinkDetails.style.display = '';
+                                    assistant.thinkDetails.open = true;
+                                }
+                                assistant.thinkEl.textContent += data;
+                            }
+                        } else {
+                            // During streaming render as plain text for stability; finalize formatting on 'done'
+                            assistant.answerBuf += data;
+                            assistant.answerEl.textContent = assistant.answerBuf;
                         }
                     }
+                }
+                // flush any leftover buffered event on stream end
+                if (sseBuffer) {
+                    const lines = sseBuffer.split('\n');
+                    let eventType = 'message';
+                    const dataLines = [];
+                    for (const line of lines){
+                        if (line.startsWith('event:')){
+                            eventType = line.slice(6).trim().replace(/\r/g, '');
+                        } else if (line.startsWith('data:')){
+                            const raw = line.slice(5);
+                            const noLead = raw.startsWith(' ') ? raw.slice(1) : raw;
+                            dataLines.push(noLead.replace(/\r/g, ''));
+                        }
+                    }
+                    const data = dataLines.join('\n');
+                    if (data && data !== '[DONE]'){
+                        if (eventType === 'think') {
+                            assistant.thinkEl.textContent += data;
+                        } else {
+                            assistant.answerEl.textContent += data;
+                        }
+                    }
+                    sseBuffer = '';
                 }
             });
 
             loadChats();
         })();
         </script>
+        <style>
+        .markdown-answer table { border-collapse: collapse; margin: 8px 0; display: block; overflow-x: auto; }
+        .markdown-answer th, .markdown-answer td { border: 1px solid #ccc; padding: 4px 8px; }
+        .markdown-answer thead { background: #f6f8fa; }
+        </style>
     </main>
     <%- include('includes/end.ejs') %>
 </body>

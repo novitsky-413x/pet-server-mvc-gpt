@@ -7,7 +7,7 @@ async function nonStreamingChat({
     messages,
     temperature = 0.3,
     top_p = 0.9,
-    max_tokens = 1024,
+    max_tokens = 4096,
     signal,
 }) {
     const res = await fetch(TOGETHER_URL, {
@@ -43,7 +43,7 @@ async function* streamingChat({
     messages,
     temperature = 0.3,
     top_p = 0.9,
-    max_tokens = 1024,
+    max_tokens = 4096,
     signal,
 }) {
     const res = await fetch(TOGETHER_URL, {
