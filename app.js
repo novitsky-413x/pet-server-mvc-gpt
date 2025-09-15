@@ -2,8 +2,8 @@ require('dotenv').config();
 const mongoPass = process.env.MONGO_PASS;
 const mongoUser = process.env.MONGO_USER;
 const mongoAddr = process.env.MONGO_ADDR;
-const MONGODB_URI = `mongodb+srv://${mongoUser}:${mongoPass}@${mongoAddr}/shop`;
-// const MONGODB_URI = `mongodb+srv://${mongoUser}:${mongoPass}@${mongoAddr}/shop?retryWrites=true`;
+const MONGODB_URI = `mongodb+srv://${mongoUser}:${mongoPass}@${mongoAddr}/pet-server-mvc-gpt`;
+// const MONGODB_URI = `mongodb+srv://${mongoUser}:${mongoPass}@${mongoAddr}/pet-server-mvc-gpt?retryWrites=true`;
 
 const path = require('path');
 
@@ -45,11 +45,12 @@ const fileFilter = (req, file, cb) => {
 app.set('view engine', 'ejs');
 app.set('views', 'views');
 
-const adminRoutes = require('./routes/admin');
-const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
+const viewRoutes = require('./routes/views');
+const apiRoutes = require('./routes/api');
 
 app.use(bodyParser.urlencoded({ extended: false }));
+app.use(express.json());
 app.use(session({ secret: 'my secret', resave: false, saveUninitialized: false, store: store }));
 app.use(multer({ storage: fileStorage, fileFilter: fileFilter }).single('image'));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -81,9 +82,9 @@ app.use((req, res, next) => {
         });
 });
 
-app.use('/admin', adminRoutes);
-app.use(shopRoutes);
 app.use(authRoutes);
+app.use(viewRoutes);
+app.use('/api', apiRoutes);
 
 app.get('/500', errorController.get500);
 

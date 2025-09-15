@@ -1,0 +1,110 @@
+<%- include('includes/head.ejs') %>
+</head>
+<body>
+    <%- include('includes/navigation.ejs') %>
+    <main>
+        <h1>Chat</h1>
+        <section>
+            <button id="newChat">New chat</button>
+            <ul id="chatList"></ul>
+        </section>
+        <section>
+            <div id="messages" style="white-space: pre-wrap;"></div>
+            <form id="sendForm">
+                <input id="input" name="content" />
+                <button type="submit">Send</button>
+            </form>
+        </section>
+        <script>
+        (function(){
+            const csrf = "<%= csrfToken %>";
+            let activeChatId = null;
+            const chatListEl = document.getElementById('chatList');
+            const messagesEl = document.getElementById('messages');
+            const sendForm = document.getElementById('sendForm');
+            const input = document.getElementById('input');
+
+            async function loadChats(){
+                const res = await fetch('/api/chats', { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
+                const data = await res.json();
+                chatListEl.innerHTML = '';
+                for (const c of data.items){
+                    const li = document.createElement('li');
+                    li.textContent = c.title;
+                    li.style.cursor = 'pointer';
+                    li.onclick = ()=> selectChat(c._id);
+                    chatListEl.appendChild(li);
+                }
+                if (!activeChatId && data.items[0]) selectChat(data.items[0]._id);
+            }
+
+            async function selectChat(id){
+                activeChatId = id;
+                messagesEl.textContent = '';
+                const res = await fetch(`/api/chats/${id}/messages`, { headers: { 'CSRF-Token': csrf }, credentials: 'include' });
+                const data = await res.json();
+                for (const m of data.items){
+                    appendBubble(m.role, m.content);
+                }
+            }
+
+            function appendBubble(role, text){
+                const div = document.createElement('div');
+                div.textContent = (role === 'user' ? 'You: ' : 'Assistant: ') + text;
+                messagesEl.appendChild(div);
+                return div;
+            }
+
+            async function ensureChat(){
+                if (activeChatId) return activeChatId;
+                const res = await fetch('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf }, credentials: 'include', body: JSON.stringify({}) });
+                const data = await res.json();
+                await loadChats();
+                return data.item._id;
+            }
+
+            document.getElementById('newChat').onclick = async ()=>{
+                await fetch('/api/chats', { method: 'POST', headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf }, credentials: 'include', body: JSON.stringify({}) });
+                await loadChats();
+            };
+
+            sendForm.addEventListener('submit', async (e)=>{
+                e.preventDefault();
+                const content = input.value.trim();
+                if (!content) return;
+                input.value = '';
+                const id = await ensureChat();
+                appendBubble('user', content);
+                const assistantEl = appendBubble('assistant', '');
+                const res = await fetch(`/api/chats/${id}/messages/stream`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': csrf },
+                    credentials: 'include',
+                    body: JSON.stringify({ content })
+                });
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                while (true){
+                    const { value, done } = await reader.read();
+                    if (done) break;
+                    const chunk = decoder.decode(value, { stream: true });
+                    const parts = chunk.split('\n\n');
+                    for (const part of parts){
+                        if (part.startsWith('data:')){
+                            const delta = part.slice(5).trim();
+                            if (delta === '[DONE]') continue;
+                            assistantEl.textContent += delta;
+                        }
+                    }
+                }
+            });
+
+            loadChats();
+        })();
+        </script>
+    </main>
+    <%- include('includes/end.ejs') %>
+</body>
+</html>
+
+
