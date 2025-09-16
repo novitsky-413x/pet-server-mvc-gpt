@@ -7,9 +7,26 @@
             <section class="hero is-info">
                 <div class="hero-body">
                     <p class="title">Welcome back</p>
-                    <p class="subtitle">Start a new conversation or continue an existing one.</p>
-                    <button id="startChat" class="button is-light">Start new chat</button>
+                    <p class="subtitle">Generate AI test cases from any URL, or start a chat.</p>
+                    <div class="buttons">
+                        <button id="startChat" class="button is-light">Start new chat</button>
+                    </div>
                 </div>
+            </section>
+
+            <section class="section">
+                <form id="gen-form">
+                    <div class="field has-addons">
+                        <div class="control is-expanded">
+                            <input id="url-input" class="input" type="url" placeholder="https://example.com" required />
+                        </div>
+                        <div class="control">
+                            <button class="button is-primary" type="submit">Generate</button>
+                        </div>
+                    </div>
+                </form>
+                <p id="gen-status" class="mt-2"></p>
+                <pre id="gen-output" style="white-space: pre-wrap"></pre>
             </section>
         </div>
     </main>
@@ -32,6 +49,41 @@
                 }
             } catch(e){
                 window.location.href = '/chat';
+            }
+        });
+    })();
+    (function(){
+        const form = document.getElementById('gen-form');
+        if (!form) return;
+        const input = document.getElementById('url-input');
+        const statusEl = document.getElementById('gen-status');
+        const outEl = document.getElementById('gen-output');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            statusEl.textContent = 'Scraping and summarizing UI...';
+            outEl.textContent = '';
+            try {
+                const res1 = await fetch('/api/ui/snapshots', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': "<%= csrfToken %>" },
+                    credentials: 'include',
+                    body: JSON.stringify({ url: input.value })
+                });
+                if (!res1.ok) throw new Error('snapshot_failed');
+                const { item: snap } = await res1.json();
+                statusEl.textContent = 'Generating test cases...';
+                const res2 = await fetch('/api/ui/tests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'CSRF-Token': "<%= csrfToken %>" },
+                    credentials: 'include',
+                    body: JSON.stringify({ snapshotId: snap._id })
+                });
+                if (!res2.ok) throw new Error('tests_failed');
+                const { items } = await res2.json();
+                statusEl.textContent = `Done. Created ${items.length} tests.`;
+                outEl.textContent = JSON.stringify(items, null, 2);
+            } catch (err) {
+                statusEl.textContent = 'Failed: ' + (err?.message || 'unknown');
             }
         });
     })();
