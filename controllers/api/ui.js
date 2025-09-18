@@ -9,8 +9,17 @@ exports.createSnapshot = async (req, res, next) => {
         const { url } = req.body || {};
         if (!url || typeof url !== 'string') return res.status(400).json({ error: { code: 'bad_request', message: 'url required' } });
         const snapshot = await scrapeUrlToSnapshot({ url, userId: req.user?._id });
-        // Create summarized UI map and store inside meta
-        const uiMap = await summarizeUi(snapshot.elements);
+        // Try UI summarization, but don't fail snapshot creation if model/config missing
+        let uiMap = { pages: [], components: [], actions: [] };
+        const hasTogether = !!process.env.TOGETHER_API_KEY && !!process.env.TOGETHER_MODEL;
+        if (hasTogether) {
+            try {
+                uiMap = await summarizeUi(snapshot.elements);
+            } catch (e) {
+                // best-effort summarization; keep empty map on failure
+                console.warn('summarizeUi failed:', e && e.message ? e.message : e);
+            }
+        }
         await UiSnapshot.updateOne({ _id: snapshot._id }, { $set: { 'meta.uiMap': uiMap } });
         res.status(201).json({ item: await UiSnapshot.findById(snapshot._id).lean() });
     } catch (err) {
