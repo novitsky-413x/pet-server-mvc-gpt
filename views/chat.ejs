@@ -16,7 +16,7 @@
                     </div>
                 </aside>
                 <section class="column">
-                    <div id="messages" class="box" style="white-space: pre-wrap"></div>
+                    <div id="messages" class="box"></div>
                     <form id="sendForm" class="field has-addons">
                         <div class="control is-expanded">
                             <input
@@ -440,11 +440,15 @@
                             if (line.startsWith('event:')) {
                                 eventType = line.slice(6).trim().replace(/\r/g, '');
                             } else if (line.startsWith('data:')) {
+                                // Per SSE spec, "data:" lines may be repeated and concatenated with newline separators.
+                                // Some servers prefix a single space after colon. Strip one leading space if present.
                                 const raw = line.slice(5).replace(/\r/g, '');
-                                dataLines.push(raw);
+                                const noLead = raw.startsWith(' ') ? raw.slice(1) : raw;
+                                dataLines.push(noLead);
                             }
                         }
-                        const data = dataLines.join('');
+                        // Join with newline per HTML Living Standard when multiple data lines are present
+                        const data = dataLines.join('\n');
                         if (eventType === 'done') {
                             // collapse reasoning when stream completes
                             if (assistant.thinkDetails) {
@@ -488,12 +492,15 @@
                                     assistant.thinkDetails.style.display = '';
                                     assistant.thinkDetails.open = true;
                                 }
+                                // Preserve newlines faithfully in <pre> block
                                 assistant.thinkEl.textContent += data;
                             }
                         } else {
                             // During streaming render as plain text for stability; finalize formatting on 'done'
-                            assistant.answerBuf += data;
-                            assistant.answerEl.textContent = assistant.answerBuf;
+                            if (data) {
+                                assistant.answerBuf += data;
+                                assistant.answerEl.textContent = assistant.answerBuf;
+                            }
                         }
                     }
                 }
