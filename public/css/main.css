@@ -420,6 +420,20 @@ body {
     color: var(--primary) !important;
 }
 
+/* Theme-aware navbar hover/active background and text color */
+[data-theme='light'] .navbar .navbar-item:hover,
+[data-theme='light'] .navbar .navbar-item.is-active,
+[data-theme='light'] .navbar .navbar-item.active {
+    background-color: color-mix(in srgb, var(--primary) 10%, transparent) !important;
+    color: var(--primary) !important;
+}
+[data-theme='dark'] .navbar .navbar-item:hover,
+[data-theme='dark'] .navbar .navbar-item.is-active,
+[data-theme='dark'] .navbar .navbar-item.active {
+    background-color: color-mix(in srgb, var(--primary) 22%, transparent) !important;
+    color: var(--primary) !important;
+}
+
 /* Theme toggle button (optional positioning) */
 .theme-toggle {
     position: fixed;
