@@ -137,6 +137,18 @@ exports.stream = async (req, res, next) => {
         });
 
         try {
+            // Helper to write SSE events with proper multi-line framing
+            const writeSSE = (eventName, dataString) => {
+                if (eventName && eventName !== 'message') {
+                    res.write(`event: ${eventName}\n`);
+                }
+                const safe = String(dataString || '').replace(/\r/g, '');
+                const lines = safe.split('\n');
+                for (const ln of lines) {
+                    res.write(`data: ${ln}\n`);
+                }
+                res.write('\n');
+            };
             const THINK_OPEN = '<think>';
             const THINK_CLOSE = '</think>';
             const longestPrefixKeep = (buffer, needle) => {
@@ -193,11 +205,10 @@ exports.stream = async (req, res, next) => {
                 }
                 if (visible) {
                     full += visible;
-                    res.write(`data: ${visible}\n\n`);
+                    writeSSE('message', visible);
                 }
                 if (thinkOut) {
-                    res.write('event: think\n');
-                    res.write(`data: ${thinkOut}\n\n`);
+                    writeSSE('think', thinkOut);
                 }
             }
         } catch (err) {
@@ -211,11 +222,10 @@ exports.stream = async (req, res, next) => {
         // Flush any remaining buffered text
         if (pending) {
             if (inThink) {
-                res.write('event: think\n');
-                res.write(`data: ${pending}\n\n`);
+                writeSSE('think', pending);
             } else {
                 full += pending;
-                res.write(`data: ${pending}\n\n`);
+                writeSSE('message', pending);
             }
             pending = '';
         }
