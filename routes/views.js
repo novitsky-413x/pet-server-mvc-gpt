@@ -16,7 +16,12 @@ router.get('/chat', isAuth, (req, res) => {
 });
 
 // Public route serving the latest game client HTML from GitHub
-router.get('/game', async (req, res, next) => {
+router.get('/game', (req, res) => {
+    res.render('game', { pageTitle: 'Game', path: '/game' });
+});
+
+// Standalone client endpoint to embed inside iframe, serves latest client from GitHub
+router.get('/game/client', async (req, res, next) => {
     const rawBase = 'https://raw.githubusercontent.com/novitsky-413x/c-dungeon/main/';
     const htmlUrl = rawBase + 'webclient.html';
 

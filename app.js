@@ -58,6 +58,31 @@ app.use('/images', express.static(path.join(__dirname, 'images')));
 app.use(csrfProtection);
 app.use(flash());
 
+// --- WebSocket reverse proxy for game client ---
+// If the embedded game client connects to /ws on this host, forward to target
+// Set GAME_WS_TARGET like wss://runcode.at or ws://127.0.0.1:4000
+try {
+    const http = require('http');
+    const httpProxy = require('http-proxy');
+    const wsTarget = process.env.GAME_WS_TARGET || '';
+    const server = http.createServer(app);
+    if (wsTarget) {
+        const proxy = httpProxy.createProxyServer({ target: wsTarget, changeOrigin: true, ws: true });
+        server.on('upgrade', (req, socket, head) => {
+            try {
+                // Only proxy /ws path to game server
+                if ((req.url || '').startsWith('/ws')) {
+                    proxy.ws(req, socket, head);
+                }
+            } catch (e) {}
+        });
+        // Replace default app.listen with server.listen when proxy enabled
+        app.set('serverWithWs', server);
+    }
+} catch (e) {
+    // http-proxy not installed or environment does not support ws; ignore
+}
+
 app.use((req, res, next) => {
     res.locals.isAuthenticated = req.session && req.session.isLoggedIn;
     res.locals.csrfToken = typeof req.csrfToken === 'function' ? req.csrfToken() : '';
@@ -102,7 +127,12 @@ app.use((error, req, res, next) => {
 mongoose
     .connect(MONGODB_URI)
     .then((result) => {
-        app.listen(3000);
+        const s = app.get('serverWithWs');
+        if (s && s.listen) {
+            s.listen(3000);
+        } else {
+            app.listen(3000);
+        }
     })
     .catch((err) => {
         console.log(err);
